@@ -25,7 +25,8 @@ public class ExternalProxyEndpoint {
 
     final Client client;
     final Map<String, String> proxyTargets;
-    static final Set<GAV> gavs = ConcurrentHashMap.newKeySet();
+    static final Set<Dependency> dependencies = ConcurrentHashMap.newKeySet();
+    static final String JAR_EXTENSION = ".jar";
 
     public ExternalProxyEndpoint(Config config,
                                  @ConfigProperty(name = "proxy-paths") List<String> endpoints, Vertx vertx) {
@@ -52,18 +53,25 @@ public class ExternalProxyEndpoint {
             throw new NotFoundException();
         }
 
-        if (path.endsWith(".jar")) {
+        if (path.endsWith(JAR_EXTENSION)) {
             String[] pathComponents = path.split("/");
             String artifact = pathComponents[pathComponents.length - 3];
             String version = pathComponents[pathComponents.length - 2];
             String group = "";
+            String classifier = null;
+            String potentialClassifier = pathComponents[pathComponents.length - 1];
             for (int i = 0; i < pathComponents.length - 3; i++) {
                 group += pathComponents[i];
                 if (i < pathComponents.length - 4) {
                     group += ".";
                 }
             }
-            gavs.add(new GAV(group, artifact, version));
+            String artifactAndVersionPrefix = artifact + "-" + version + "-";
+            // Has classifier due to presence of '-' after version
+            if (potentialClassifier.startsWith(artifactAndVersionPrefix)) {
+                classifier = potentialClassifier.substring(artifactAndVersionPrefix.length(), potentialClassifier.length() - JAR_EXTENSION.length() - 1);
+            }
+            dependencies.add(new Dependency(new GAV(group, artifact, version), classifier));
         }
 
         return response.readEntity(InputStream.class);

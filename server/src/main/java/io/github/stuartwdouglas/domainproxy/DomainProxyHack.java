@@ -1,6 +1,6 @@
 package io.github.stuartwdouglas.domainproxy;
 
-import static io.github.stuartwdouglas.domainproxy.ExternalProxyEndpoint.gavs;
+import static io.github.stuartwdouglas.domainproxy.ExternalProxyEndpoint.dependencies;
 
 import java.io.IOException;
 import java.net.Socket;
@@ -122,13 +122,18 @@ public class DomainProxyHack {
 
     private void createBom() throws IOException {
         Bom bom = new Bom();
-        for (GAV gav : gavs) {
+        for (Dependency dependency : dependencies) {
+            GAV gav = dependency.GAV();
             Component component = new Component();
             component.setType(Component.Type.LIBRARY);
             component.setGroup(gav.group());
             component.setName(gav.artifact());
             component.setVersion(gav.version());
-            component.setPurl(String.format("pkg:maven/%s/%s@%s", gav.group(), gav.artifact(), gav.version()));
+            String purl = String.format("pkg:maven/%s/%s@%s", gav.group(), gav.artifact(), gav.version());
+            if (dependency.classifier() != null) {
+                purl += String.format("?classifier=%s", dependency.classifier());
+            }
+            component.setPurl(purl);
             bom.addComponent(component);
 
             Property typeProperty = new Property();
@@ -142,7 +147,7 @@ public class DomainProxyHack {
             component.addProperty(languageProperty);
         }
 
-        if (!gavs.isEmpty()) {
+        if (!dependencies.isEmpty()) {
             BomJsonGenerator bomJsonGenerator = BomGeneratorFactory.createJson(CycloneDxSchema.Version.VERSION_15, bom);
             Files.createDirectories(sbomOutputDir);
             Files.writeString(sbomOutputDir.resolve("sbom.json"), bomJsonGenerator.toJsonString(), StandardCharsets.UTF_8);
