@@ -1,28 +1,39 @@
 package io.github.stuartwdouglas.domainproxy;
 
-import io.quarkus.runtime.Quarkus;
-import io.quarkus.runtime.Startup;
-import jakarta.annotation.PostConstruct;
-import jakarta.inject.Inject;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
+import static io.github.stuartwdouglas.domainproxy.ExternalProxyEndpoint.dependencies;
 
 import java.io.IOException;
-import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.StandardProtocolFamily;
 import java.net.UnixDomainSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
+
+import jakarta.annotation.PostConstruct;
+import jakarta.inject.Inject;
+
+import org.cyclonedx.BomGeneratorFactory;
+import org.cyclonedx.CycloneDxSchema;
+import org.cyclonedx.generators.json.BomJsonGenerator;
+import org.cyclonedx.model.Bom;
+import org.cyclonedx.model.Component;
+import org.cyclonedx.model.Property;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+
+import io.quarkus.runtime.Quarkus;
+import io.quarkus.runtime.Startup;
 
 @Startup
 public class DomainProxyHack {
 
     @Inject
     @ConfigProperty(name = "server-domain-socket") String domainSocket;
+
+    @ConfigProperty(name = "sbom-output-directory") Path sbomOutputDir;
 
     @PostConstruct
     public void start() {
@@ -34,6 +45,7 @@ public class DomainProxyHack {
                     public void run() {
                         try {
                             Files.delete(Path.of(domainSocket));
+                            createBom();
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
@@ -108,5 +120,37 @@ public class DomainProxyHack {
         }).start();
     }
 
+    private void createBom() throws IOException {
+        Bom bom = new Bom();
+        for (Dependency dependency : dependencies) {
+            GAV gav = dependency.GAV();
+            Component component = new Component();
+            component.setType(Component.Type.LIBRARY);
+            component.setGroup(gav.group());
+            component.setName(gav.artifact());
+            component.setVersion(gav.version());
+            String purl = String.format("pkg:maven/%s/%s@%s", gav.group(), gav.artifact(), gav.version());
+            if (dependency.classifier() != null) {
+                purl += String.format("?classifier=%s", dependency.classifier());
+            }
+            component.setPurl(purl);
+            bom.addComponent(component);
 
+            Property typeProperty = new Property();
+            typeProperty.setName("package:type");
+            typeProperty.setValue("maven");
+            component.addProperty(typeProperty);
+
+            Property languageProperty = new Property();
+            languageProperty.setName("package:language");
+            languageProperty.setValue("java");
+            component.addProperty(languageProperty);
+        }
+
+        if (!dependencies.isEmpty()) {
+            BomJsonGenerator bomJsonGenerator = BomGeneratorFactory.createJson(CycloneDxSchema.Version.VERSION_15, bom);
+            Files.createDirectories(sbomOutputDir);
+            Files.writeString(sbomOutputDir.resolve("sbom.json"), bomJsonGenerator.toJsonString(), StandardCharsets.UTF_8);
+        }
+    }
 }
