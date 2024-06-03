@@ -69,7 +69,7 @@ public class ExternalProxyEndpoint {
             String artifactAndVersionPrefix = artifact + "-" + version + "-";
             // Has classifier due to presence of '-' after version
             if (potentialClassifier.startsWith(artifactAndVersionPrefix)) {
-                classifier = potentialClassifier.substring(artifactAndVersionPrefix.length(), potentialClassifier.length() - JAR_EXTENSION.length() - 1);
+                classifier = potentialClassifier.substring(artifactAndVersionPrefix.length(), potentialClassifier.length() - JAR_EXTENSION.length());
             }
             dependencies.add(new Dependency(new GAV(group, artifact, version), classifier));
         }
