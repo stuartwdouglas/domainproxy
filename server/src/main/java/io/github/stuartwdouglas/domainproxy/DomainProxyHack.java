@@ -24,6 +24,7 @@ import org.cyclonedx.model.Component;
 import org.cyclonedx.model.Property;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import io.quarkus.logging.Log;
 import io.quarkus.runtime.Quarkus;
 import io.quarkus.runtime.Startup;
 
@@ -148,9 +149,11 @@ public class DomainProxyHack {
         }
 
         if (!dependencies.isEmpty()) {
-            BomJsonGenerator bomJsonGenerator = BomGeneratorFactory.createJson(CycloneDxSchema.Version.VERSION_15, bom);
             Files.createDirectories(sbomOutputDir);
-            Files.writeString(sbomOutputDir.resolve("sbom.json"), bomJsonGenerator.toJsonString(), StandardCharsets.UTF_8);
+            Path sbom = sbomOutputDir.resolve("sbom.json");
+            Log.infof("Writing SBOM to %s", sbom.toAbsolutePath());
+            BomJsonGenerator bomJsonGenerator = BomGeneratorFactory.createJson(CycloneDxSchema.VERSION_LATEST, bom);
+            Files.writeString(sbom, bomJsonGenerator.toJsonString(), StandardCharsets.UTF_8);
         }
     }
 }
